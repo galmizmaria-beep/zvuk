@@ -156,12 +156,11 @@
 <body>
 
 <div class="main-wrapper">
-    <!-- Левая панель: Настройки -->
     <div class="editor-container">
         <h2>Магия Голоса</h2>
         
-        <label>Текст для озвучки (без ограничений)</label>
-        <textarea id="textInput" placeholder="Введите заклинание или очень длинный текст..."></textarea>
+        <label>Текст для озвучки</label>
+        <textarea id="textInput" placeholder="Введите заклинание или любой текст..."></textarea>
         <div class="char-counter"><span id="charCount">0</span> символов</div>
 
         <div class="slider-group">
@@ -175,9 +174,9 @@
             <div>
                 <label>Тембр голоса</label>
                 <select id="voiceSelect">
-                    <option value="Standard">Стандартный (Женский)</option>
-                    <option value="Male">Мужской (Грубый)</option>
-                    <option value="Child">Мультяшный / Детский</option>
+                    <option value="Standard">Женский (Стандартный)</option>
+                    <option value="Male">Мужской (Бас)</option>
+                    <option value="Child">Детский / Гном</option>
                     <option value="Robot">Механический голем</option>
                 </select>
             </div>
@@ -185,32 +184,29 @@
 
         <div class="slider-group">
             <div>
-                <label>Скорость произношения: <span id="speedVal">1.0</span></label>
-                <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+                <label>Общая скорость: <span id="speedVal">1.0</span></label>
+                <input type="range" id="speed" min="0.6" max="1.8" step="0.1" value="1">
             </div>
         </div>
     </div>
 
-    <!-- Правая панель: Проверка и скачивание -->
     <div class="preview-container">
         <h2>Результат</h2>
         
         <p style="color: #888; font-style: italic; font-size: 15px; margin-bottom: 25px;">
-            Создайте озвучку, проверьте результат, и если вам понравится — сохраните свиток на устройство.
+            Создайте озвучку (работает без VPN), проверьте результат и скачайте свиток.
         </p>
 
-        <button id="checkBtn" class="btn">Проверить результат</button>
+        <button id="checkBtn" class="btn">Создать заклинание</button>
         
         <div id="loaderContainer" class="loader-container">
             <div class="loader"></div>
-            <div id="progressText" class="progress-text">Подготовка заклинания...</div>
+            <div id="progressText" class="progress-text">Призыв духов... (может занять 5-10 сек)</div>
         </div>
 
-        <!-- Контейнер плеера (появляется после генерации) -->
         <div class="audio-player-container" id="playerContainer">
             <p>Успешно создано! Прослушайте:</p>
             <audio id="audioPlayer" controls></audio>
-            
             <button id="downloadBtn" class="btn btn-download">Скачать на устройство</button>
         </div>
     </div>
@@ -231,7 +227,6 @@
 
     let finalAudioBlob = null;
 
-    // Обновление счетчика символов и UI
     textInput.addEventListener('input', () => {
         charCount.innerText = textInput.value.length;
         resetPlayer();
@@ -253,7 +248,7 @@
         }
     }
 
-    // Умная разбивка текста (чтобы не резать слова и обходить лимиты Google)
+    // Разбивка длинного текста
     function chunkText(text, maxLength = 150) {
         const words = text.split(/[\s\n]+/);
         const chunks = [];
@@ -271,36 +266,48 @@
         return chunks;
     }
 
-    // Вспомогательная функция задержки для обхода банов
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    // Функция скачивания через каскад прокси (Решает проблему с VPN)
-    async function fetchAudioData(url) {
-        // Список прокси. Если один заблокирован в РФ, сработает следующий.
+    // Новая надежная функция обхода блокировок без VPN
+    async function fetchAudioData(text, lang) {
+        const encodedText = encodeURIComponent(text);
+        
+        // Способ 1: Lingva API (возвращает байты в JSON, обходит блокировки CORS)
+        const lingvaUrl = `https://lingva.ml/api/v1/audio/${lang}/${encodedText}`;
+        
+        // Способ 2: Запасные прокси (если Lingva недоступна)
+        const googleUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=${lang}&q=${encodedText}`;
         const proxies = [
-            `https://corsproxy.io/?${encodeURIComponent(url)}`,
-            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(googleUrl)}`
         ];
+
+        try {
+            const res = await fetch(lingvaUrl);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.audio) {
+                    return new Uint8Array(data.audio).buffer;
+                }
+            }
+        } catch (e) {
+            console.warn("Основной сервер недоступен, пробуем резервные...");
+        }
 
         for (let proxy of proxies) {
             try {
                 const response = await fetch(proxy);
                 if (response.ok) {
                     const buffer = await response.arrayBuffer();
-                    // Проверяем, что вернулось аудио, а не заглушка от хостинга
-                    if (buffer.byteLength > 200) {
-                        return buffer;
-                    }
+                    if (buffer.byteLength > 1000) return buffer;
                 }
             } catch (e) {
-                console.warn(`Прокси ${proxy} недоступен, пробуем следующий...`);
+                console.warn(`Резервный канал ${proxy} недоступен...`);
             }
         }
-        throw new Error("Не удалось подключиться к серверам магии. Возможно, потребуется VPN.");
+        throw new Error("Не удалось подключиться к серверам (возможно, проблемы с интернетом).");
     }
 
-    // Главная функция сотворения аудио
     checkBtn.addEventListener('click', async () => {
         const text = textInput.value.trim();
         if (!text) return alert("Пожалуйста, напишите текст для заклинания!");
@@ -313,60 +320,50 @@
             const lang = langSelect.value;
             const voiceType = voiceSelect.value;
             const speedMultiplier = parseFloat(speedInput.value);
-            
             const chunks = chunkText(text);
             
-            // AudioContext для обработки эффектов
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             const ctx = new AudioContext();
             const buffers = [];
 
-            // 1. Скачиваем аудио по кусочкам (Обход лимитов)
+            // 1. Скачиваем аудио по кусочкам
             for (let i = 0; i < chunks.length; i++) {
-                progressText.innerText = `Сотворение магии: часть ${i + 1} из ${chunks.length}...`;
-                
-                // Используем клиент tw-ob, он работает стабильнее
-                const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(chunks[i])}`;
-                
-                const arrayBuffer = await fetchAudioData(googleTtsUrl);
+                progressText.innerText = `Загрузка: часть ${i + 1} из ${chunks.length}...`;
+                const arrayBuffer = await fetchAudioData(chunks[i], lang);
                 const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
                 buffers.push(audioBuffer);
-
-                // Задержка между запросами для предотвращения бана по IP при огромных текстах
-                if (i < chunks.length - 1) {
-                    await sleep(400); 
-                }
+                if (i < chunks.length - 1) await sleep(200); 
             }
 
-            progressText.innerText = `Наложение звуковых эффектов...`;
-            await sleep(100);
+            progressText.innerText = `Наложение магических эффектов...`;
+            await sleep(50);
 
-            // 2. Рассчитываем итоговую длину и скорость для эффектов
+            // 2. Настраиваем реалистичное искажение голоса (Pitch)
+            let pitchRate = 1.0; 
+            if (voiceType === 'Male') pitchRate = 0.82; // Глубокий мужской, но не замедленный в ноль
+            if (voiceType === 'Child') pitchRate = 1.4; // Высокий детский
+            if (voiceType === 'Robot') pitchRate = 0.9;
+
+            const finalPlaybackRate = speedMultiplier * pitchRate;
             let totalDuration = buffers.reduce((acc, buf) => acc + buf.duration, 0);
-            if (totalDuration === 0) throw new Error("Аудио пустое");
             
-            let rate = speedMultiplier;
-            // Применяем магию искажения голоса
-            if (voiceType === 'Male') rate *= 0.65; // Замедляем и понижаем тон
-            if (voiceType === 'Child') rate *= 1.5; // Ускоряем и повышаем тон
-            
-            // Создаем оффлайн-контекст для рендеринга итогового файла
-            const totalLength = Math.ceil(ctx.sampleRate * totalDuration * (1/rate));
+            // Рассчитываем точную длину итогового файла
+            const totalLength = Math.ceil(ctx.sampleRate * (totalDuration / finalPlaybackRate));
             const offlineCtx = new OfflineAudioContext(1, totalLength, ctx.sampleRate);
             
             let currentTime = 0;
 
-            // 3. Собираем кусочки воедино с эффектами
+            // 3. Собираем и применяем эффекты
             for (let buf of buffers) {
                 const source = offlineCtx.createBufferSource();
                 source.buffer = buf;
-                source.playbackRate.value = rate;
+                source.playbackRate.value = finalPlaybackRate;
 
                 if (voiceType === 'Robot') {
-                    // Эффект Робота (Кольцевая модуляция)
+                    // Эффект Робота (Амплитудная модуляция)
                     const osc = offlineCtx.createOscillator();
-                    osc.type = 'sawtooth';
-                    osc.frequency.value = 40; // Механический гул
+                    osc.type = 'sine';
+                    osc.frequency.value = 50; // Металлическое дребезжание
                     
                     const gainNode = offlineCtx.createGain();
                     source.connect(gainNode);
@@ -374,34 +371,32 @@
                     gainNode.connect(offlineCtx.destination);
                     
                     osc.start(currentTime);
-                    osc.stop(currentTime + buf.duration * (1/rate));
+                    osc.stop(currentTime + (buf.duration / finalPlaybackRate));
                     source.start(currentTime);
                 } else {
                     source.connect(offlineCtx.destination);
                     source.start(currentTime);
                 }
                 
-                currentTime += buf.duration * (1/rate);
+                currentTime += (buf.duration / finalPlaybackRate);
             }
 
-            // 4. Рендерим и конвертируем в WAV файл
+            // 4. Рендерим файл
             const renderedBuffer = await offlineCtx.startRendering();
             finalAudioBlob = audioBufferToWav(renderedBuffer);
             
-            // Показываем плеер
             audioPlayer.src = URL.createObjectURL(finalAudioBlob);
             playerContainer.style.display = 'block';
 
         } catch (error) {
             console.error(error);
-            alert(error.message || "Произошла магическая ошибка. Проверьте соединение с интернетом.");
+            alert(error.message);
         } finally {
             checkBtn.style.display = 'block';
             loaderContainer.style.display = 'none';
         }
     });
 
-    // Функция скачивания готового файла
     downloadBtn.addEventListener('click', () => {
         if (!finalAudioBlob) return;
         const a = document.createElement('a');
@@ -412,7 +407,6 @@
         document.body.removeChild(a);
     });
 
-    // Утилита конвертации AudioBuffer в WAV Blob
     function audioBufferToWav(buffer) {
         let numOfChan = buffer.numberOfChannels,
             length = buffer.length * numOfChan * 2 + 44,
