@@ -3,163 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TTS Редактор для Genially</title>
+    <title>Magical Voice Editor</title>
+    <!-- Подключаем шрифты в стиле фэнтези -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --bg-color: #0b1120; /* Глубокий синий */
+            --panel-bg: rgba(14, 23, 41, 0.85);
+            --gold: #C5A059;
+            --gold-hover: #e3bc6b;
+            --text-main: #e0e6ed;
+            --border-glow: 0 0 15px rgba(197, 160, 89, 0.2);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f8;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at center, #152038 0%, #060913 100%);
+            font-family: 'Cormorant Garamond', serif;
+            color: var(--text-main);
             display: flex;
             justify-content: center;
-            padding: 20px;
-            color: #333;
+            align-items: center;
         }
-        .editor-container {
-            background: #fff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+
+        .main-wrapper {
+            display: flex;
+            gap: 20px;
+            max-width: 900px;
             width: 100%;
-            max-width: 500px;
+            flex-wrap: wrap;
         }
-        h2 { margin-top: 0; font-size: 20px; color: #2c3e50; text-align: center; }
-        label { display: block; margin-top: 15px; font-size: 14px; font-weight: 600; }
-        textarea {
-            width: 100%; height: 100px; padding: 10px; margin-top: 5px;
-            border: 1px solid #ccc; border-radius: 6px; resize: none;
-            box-sizing: border-box; font-family: inherit;
+
+        .editor-container, .preview-container {
+            background: var(--panel-bg);
+            padding: 30px;
+            border: 1px solid var(--gold);
+            border-radius: 4px;
+            box-shadow: var(--border-glow);
+            flex: 1;
+            min-width: 300px;
+            position: relative;
         }
-        select, input[type="range"] {
-            width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc;
-            border-radius: 6px; box-sizing: border-box;
+
+        /* Декоративные уголки */
+        .editor-container::before, .editor-container::after,
+        .preview-container::before, .preview-container::after {
+            content: ''; position: absolute; width: 10px; height: 10px; border: 1px solid var(--gold);
         }
-        .slider-group {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+        .editor-container::before, .preview-container::before { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+        .editor-container::after, .preview-container::after { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+
+        h2 {
+            font-family: 'Cinzel', serif;
+            color: var(--gold);
+            text-align: center;
+            font-size: 24px;
+            margin-top: 0;
+            letter-spacing: 2px;
+            border-bottom: 1px solid rgba(197, 160, 89, 0.3);
+            padding-bottom: 15px;
         }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            color: var(--gold);
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(197, 160, 89, 0.5);
+            color: var(--text-main);
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 16px;
+            border-radius: 2px;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        textarea { height: 100px; resize: none; }
+        textarea:focus, select:focus { border-color: var(--gold); box-shadow: inset 0 0 5px rgba(197, 160, 89, 0.3); }
+
+        .slider-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        /* Стилизация ползунков под магические линии */
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; background: transparent; margin-top: 10px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 2px; background: rgba(197, 160, 89, 0.5); border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: var(--gold); cursor: pointer; margin-top: -6px; box-shadow: 0 0 5px var(--gold);
+        }
+
         .btn {
-            display: block; width: 100%; padding: 12px; margin-top: 25px;
-            background: #3498db; color: #fff; border: none; border-radius: 6px;
-            font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s;
+            display: block; width: 100%; padding: 12px; margin-top: 30px;
+            background: transparent; color: var(--gold);
+            border: 1px solid var(--gold); border-radius: 25px;
+            font-family: 'Cinzel', serif; font-size: 16px; font-weight: bold;
+            letter-spacing: 1px; cursor: pointer; transition: 0.3s;
+            text-transform: uppercase;
         }
-        .btn:hover { background: #2980b9; }
-        .btn.ready { background: #2ecc71; }
-        .btn.ready:hover { background: #27ae60; }
-        .btn.downloaded { background: #95a5a6; cursor: default; }
-        .audio-preview { margin-top: 15px; width: 100%; display: none; }
+
+        .btn:hover { background: rgba(197, 160, 89, 0.1); box-shadow: var(--border-glow); }
+        .btn.ready { background: rgba(197, 160, 89, 0.2); border-color: #e3bc6b; color: #e3bc6b; }
+        .btn.downloaded { border-color: #555; color: #888; cursor: default; background: transparent; }
+
+        /* Окно предпросмотра */
+        .preview-list { list-style: none; padding: 0; margin: 0; }
+        .preview-list li { margin-bottom: 12px; font-size: 18px; border-bottom: 1px dashed rgba(197,160,89,0.2); padding-bottom: 5px; }
+        .preview-list strong { font-family: 'Cinzel', serif; color: var(--gold); font-size: 14px; display: inline-block; width: 100px; }
+        
+        .preview-text-box {
+            margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(197,160,89,0.2); font-style: italic; min-height: 80px;
+            word-wrap: break-word;
+        }
+
+        .audio-player-container { margin-top: 20px; display: none; text-align: center; }
+        audio { width: 100%; height: 35px; outline: none; }
     </style>
 </head>
 <body>
 
-<div class="editor-container">
-    <h2>Редактор озвучки</h2>
-    
-    <label>Текст для озвучки:</label>
-    <textarea id="textInput" placeholder="Введите текст здесь..."></textarea>
+<div class="main-wrapper">
+    <!-- Левая панель: Настройки -->
+    <div class="editor-container">
+        <h2>Магия Голоса</h2>
+        
+        <label>Текст для озвучки</label>
+        <textarea id="textInput" placeholder="Введите заклинание или текст..."></textarea>
 
-    <label>Выберите голос:</label>
-    <select id="voiceSelect">
-        <option value="male">Мужской</option>
-        <option value="female">Женский</option>
-        <option value="child">Детский (имитация)</option>
-        <option value="cartoon">Мультяшный (имитация)</option>
-        <option value="robot">Робот (имитация)</option>
-    </select>
-
-    <div class="slider-group">
-        <div>
-            <label>Скорость: <span id="speedVal">1.0</span></label>
-            <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+        <div class="slider-group">
+            <div>
+                <label>Язык магии</label>
+                <select id="langSelect">
+                    <option value="ru">Русский (Russian)</option>
+                    <option value="en">Английский (English)</option>
+                </select>
+            </div>
+            <div>
+                <label>Тембр голоса</label>
+                <select id="voiceSelect">
+                    <option value="Standard">Стандартный</option>
+                    <option value="Male">Мужской (Имитация)</option>
+                    <option value="Female">Женский (Имитация)</option>
+                    <option value="Robot">Механический</option>
+                </select>
+            </div>
         </div>
-        <div>
-            <label>Высота (Pitch): <span id="pitchVal">1.0</span></label>
-            <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+
+        <div class="slider-group">
+            <div>
+                <label>Скорость: <span id="speedVal">1.0</span></label>
+                <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+            </div>
+            <div>
+                <label>Высота (Pitch): <span id="pitchVal">1.0</span></label>
+                <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+            </div>
         </div>
     </div>
 
-    <label>Формат файла:</label>
-    <select id="formatSelect">
-        <option value="mp3">MP3 (Аудио)</option>
-        <option value="mp4" disabled>MP4 (Видео - недоступно без сервера)</option>
-    </select>
+    <!-- Правая панель: Предпросмотр -->
+    <div class="preview-container">
+        <h2>Предпросмотр</h2>
+        <ul class="preview-list">
+            <li><strong>Язык:</strong> <span id="prev-lang">Русский</span></li>
+            <li><strong>Голос:</strong> <span id="prev-voice">Стандартный</span></li>
+            <li><strong>Скорость:</strong> <span id="prev-speed">1.0</span></li>
+            <li><strong>Высота:</strong> <span id="prev-pitch">1.0</span></li>
+        </ul>
+        
+        <label>Свиток с текстом:</label>
+        <div class="preview-text-box" id="prev-text">Ожидание текста...</div>
 
-    <audio id="audioPlayer" class="audio-preview" controls></audio>
+        <div class="audio-player-container" id="playerContainer">
+            <audio id="audioPlayer" controls></audio>
+        </div>
 
-    <button id="actionBtn" class="btn">Создать озвучку</button>
+        <button id="actionBtn" class="btn">Создать озвучку</button>
+    </div>
 </div>
 
 <script>
-    // Обновление значений ползунков
-    document.getElementById('speed').oninput = function() { document.getElementById('speedVal').innerText = this.value; }
-    document.getElementById('pitch').oninput = function() { document.getElementById('pitchVal').innerText = this.value; }
-
+    // Элементы UI
+    const textInput = document.getElementById('textInput');
+    const langSelect = document.getElementById('langSelect');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const speedInput = document.getElementById('speed');
+    const pitchInput = document.getElementById('pitch');
     const actionBtn = document.getElementById('actionBtn');
+    
+    // Элементы предпросмотра
+    const prevText = document.getElementById('prev-text');
+    const prevLang = document.getElementById('prev-lang');
+    const prevVoice = document.getElementById('prev-voice');
+    const prevSpeed = document.getElementById('prev-speed');
+    const prevPitch = document.getElementById('prev-pitch');
+    
+    const playerContainer = document.getElementById('playerContainer');
     const audioPlayer = document.getElementById('audioPlayer');
+    
     let generatedBlobUrl = null;
 
+    // Функция обновления окна предпросмотра
+    function updatePreview() {
+        prevText.innerText = textInput.value || "Ожидание текста...";
+        prevLang.innerText = langSelect.options[langSelect.selectedIndex].text;
+        prevVoice.innerText = voiceSelect.options[voiceSelect.selectedIndex].text;
+        
+        document.getElementById('speedVal').innerText = speedInput.value;
+        prevSpeed.innerText = speedInput.value;
+        
+        document.getElementById('pitchVal').innerText = pitchInput.value;
+        prevPitch.innerText = pitchInput.value;
+
+        // Если настройки изменились, возвращаем кнопку в исходное состояние
+        if (actionBtn.getAttribute('data-state') === 'download' || actionBtn.getAttribute('data-state') === 'downloaded') {
+            actionBtn.setAttribute('data-state', 'create');
+            actionBtn.className = "btn";
+            actionBtn.innerText = "Создать озвучку";
+            playerContainer.style.display = 'none';
+        }
+    }
+
+    // Вешаем слушатели на все элементы для живого предпросмотра
+    textInput.addEventListener('input', updatePreview);
+    langSelect.addEventListener('change', updatePreview);
+    voiceSelect.addEventListener('change', updatePreview);
+    speedInput.addEventListener('input', updatePreview);
+    pitchInput.addEventListener('input', updatePreview);
+
+    // Функция конвертации Base64 в аудио Blob (файл)
+    function base64ToBlob(base64, mimeType) {
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], { type: mimeType });
+    }
+
+    // Главная кнопка
     actionBtn.addEventListener('click', async () => {
         const state = actionBtn.getAttribute('data-state') || 'create';
 
         if (state === 'create') {
-            const text = document.getElementById('textInput').value;
-            if (!text) return alert("Пожалуйста, введите текст!");
+            const text = textInput.value.trim();
+            if (!text) {
+                alert("Пожалуйста, напишите текст для заклинания!");
+                return;
+            }
 
-            actionBtn.innerText = "Генерация...";
-            actionBtn.style.background = "#e67e22";
+            actionBtn.innerText = "Сотворение магии...";
+            actionBtn.style.color = "#fff";
 
             try {
-                // Используем бесплатный неофициальный API Google Translate для получения MP3
-                // В реальном проекте здесь подключается API Yandex SpeechKit или ElevenLabs
+                const lang = langSelect.value;
                 const encodedText = encodeURIComponent(text);
-                const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ru-RU&client=tw-ob&q=${encodedText}`;
                 
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Ошибка сети");
+                // Используем Lingva API (надежный прокси без ограничений CORS)
+                const apiUrl = `https://lingva.ml/api/v1/audio/${lang}/${encodedText}`;
                 
-                const blob = await response.blob();
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error("Сервер магии недоступен");
                 
-                // Освобождаем старый URL, если был
-                if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
-                generatedBlobUrl = URL.createObjectURL(blob);
+                const data = await response.json();
                 
-                audioPlayer.src = generatedBlobUrl;
-                audioPlayer.style.display = 'block';
+                if (data.audio) {
+                    // Конвертируем полученные данные в MP3 файл
+                    const audioBlob = base64ToBlob(data.audio, 'audio/mp3');
+                    
+                    if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
+                    generatedBlobUrl = URL.createObjectURL(audioBlob);
+                    
+                    audioPlayer.src = generatedBlobUrl;
+                    // Применяем скорость (pitch в браузере менять сложно, поэтому меняем rate)
+                    audioPlayer.playbackRate = parseFloat(speedInput.value); 
+                    
+                    playerContainer.style.display = 'block';
 
-                // Меняем кнопку на "Скачать"
-                actionBtn.setAttribute('data-state', 'download');
-                actionBtn.className = "btn ready";
-                actionBtn.innerText = "Скачать озвучку";
+                    actionBtn.setAttribute('data-state', 'download');
+                    actionBtn.className = "btn ready";
+                    actionBtn.innerText = "Скачать Свиток (MP3)";
+                } else {
+                    throw new Error("Пустой ответ сервера");
+                }
 
             } catch (error) {
-                alert("Ошибка генерации. Попробуйте другой текст.");
+                console.error(error);
+                alert("Произошла ошибка при генерации. Попробуйте укоротить текст.");
                 actionBtn.innerText = "Создать озвучку";
-                actionBtn.style.background = "#3498db";
+                actionBtn.style.color = "var(--gold)";
             }
         } 
         else if (state === 'download') {
-            // Скачивание файла
+            // Скачивание файла на устройство
             const a = document.createElement('a');
             a.href = generatedBlobUrl;
-            a.download = `voiceover_${new Date().getTime()}.mp3`;
+            a.download = `voice_magic_${new Date().getTime()}.mp3`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
 
-            // Меняем кнопку на "Скачано"
             actionBtn.setAttribute('data-state', 'downloaded');
             actionBtn.className = "btn downloaded";
-            actionBtn.innerText = "Скачано";
-
-            // Возврат в исходное состояние при изменении текста
-            document.getElementById('textInput').addEventListener('input', resetBtn, {once: true});
-            document.getElementById('voiceSelect').addEventListener('change', resetBtn, {once: true});
+            actionBtn.innerText = "Успешно скачано";
         }
     });
 
-    function resetBtn() {
-        actionBtn.setAttribute('data-state', 'create');
-        actionBtn.className = "btn";
-        actionBtn.innerText = "Создать озвучку";
-        audioPlayer.style.display = 'none';
-    }
+    // Инициализация при загрузке
+    updatePreview();
 </script>
 
 </body>
