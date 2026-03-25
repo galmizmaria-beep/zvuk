@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magical Voice Editor Pro</title>
+    <title>Редактор озвучки персонажа</title>
     <!-- Подключаем шрифты в стиле фэнтези -->
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
     
@@ -62,7 +62,7 @@
             font-family: 'Cinzel', serif;
             color: var(--gold);
             text-align: center;
-            font-size: 24px;
+            font-size: 22px;
             margin-top: 0;
             letter-spacing: 2px;
             border-bottom: 1px solid rgba(197, 160, 89, 0.3);
@@ -157,7 +157,7 @@
 
 <div class="main-wrapper">
     <div class="editor-container">
-        <h2>Магия Голоса</h2>
+        <h2>Редактор озвучки персонажа</h2>
         
         <label>Текст для озвучки</label>
         <textarea id="textInput" placeholder="Введите заклинание или любой текст..."></textarea>
@@ -175,7 +175,7 @@
                 <label>Тембр голоса</label>
                 <select id="voiceSelect">
                     <option value="Standard">Женский (Стандартный)</option>
-                    <option value="Male">Мужской (Бас)</option>
+                    <option value="Male">Мужской (Грубый/Бас)</option>
                     <option value="Child">Детский / Гном</option>
                     <option value="Robot">Механический голем</option>
                 </select>
@@ -194,14 +194,14 @@
         <h2>Результат</h2>
         
         <p style="color: #888; font-style: italic; font-size: 15px; margin-bottom: 25px;">
-            Создайте озвучку (работает без VPN), проверьте результат и скачайте свиток.
+            Создайте озвучку (работает без VPN), проверьте результат и скачайте аудио.
         </p>
 
-        <button id="checkBtn" class="btn">Создать заклинание</button>
+        <button id="checkBtn" class="btn">Создать озвучку</button>
         
         <div id="loaderContainer" class="loader-container">
             <div class="loader"></div>
-            <div id="progressText" class="progress-text">Призыв духов... (может занять 5-10 сек)</div>
+            <div id="progressText" class="progress-text">Генерация звука... (может занять 5-10 сек)</div>
         </div>
 
         <div class="audio-player-container" id="playerContainer">
@@ -268,49 +268,44 @@
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    // Новая надежная функция обхода блокировок без VPN
+    // Обновленная и надежная система обхода блокировок
     async function fetchAudioData(text, lang) {
         const encodedText = encodeURIComponent(text);
         
-        // Способ 1: Lingva API (возвращает байты в JSON, обходит блокировки CORS)
-        const lingvaUrl = `https://lingva.ml/api/v1/audio/${lang}/${encodedText}`;
-        
-        // Способ 2: Запасные прокси (если Lingva недоступна)
-        const googleUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=${lang}&q=${encodedText}`;
-        const proxies = [
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`,
-            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(googleUrl)}`
+        // Прямой запрос к Google TTS (client=tw-ob часто не блокируется CORS)
+        const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodedText}`;
+
+        // Надежные прокси и запасные зеркала API, работающие в РФ
+        const sources = [
+            `https://corsproxy.io/?${encodeURIComponent(gUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(gUrl)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(gUrl)}`,
+            `https://lingva.ml/api/v1/audio/${lang}/${encodedText}`,
+            `https://lingva.thedesk.top/api/v1/audio/${lang}/${encodedText}`
         ];
 
-        try {
-            const res = await fetch(lingvaUrl);
-            if (res.ok) {
-                const data = await res.json();
-                if (data && data.audio) {
-                    return new Uint8Array(data.audio).buffer;
-                }
-            }
-        } catch (e) {
-            console.warn("Основной сервер недоступен, пробуем резервные...");
-        }
-
-        for (let proxy of proxies) {
+        for (let url of sources) {
             try {
-                const response = await fetch(proxy);
-                if (response.ok) {
-                    const buffer = await response.arrayBuffer();
-                    if (buffer.byteLength > 1000) return buffer;
+                const res = await fetch(url);
+                if (res.ok) {
+                    if (url.includes('api/v1/audio')) {
+                        const data = await res.json();
+                        if (data && data.audio) return new Uint8Array(data.audio).buffer;
+                    } else {
+                        const buffer = await res.arrayBuffer();
+                        if (buffer.byteLength > 1000) return buffer;
+                    }
                 }
             } catch (e) {
-                console.warn(`Резервный канал ${proxy} недоступен...`);
+                console.warn(`Сервер недоступен, переключаемся: ${url}`);
             }
         }
-        throw new Error("Не удалось подключиться к серверам (возможно, проблемы с интернетом).");
+        throw new Error("Не удалось подключиться к серверам генерации речи. Проверьте интернет.");
     }
 
     checkBtn.addEventListener('click', async () => {
         const text = textInput.value.trim();
-        if (!text) return alert("Пожалуйста, напишите текст для заклинания!");
+        if (!text) return alert("Пожалуйста, напишите текст для озвучки!");
 
         checkBtn.style.display = 'none';
         loaderContainer.style.display = 'block';
@@ -335,19 +330,19 @@
                 if (i < chunks.length - 1) await sleep(200); 
             }
 
-            progressText.innerText = `Наложение магических эффектов...`;
+            progressText.innerText = `Наложение эффектов...`;
             await sleep(50);
 
-            // 2. Настраиваем реалистичное искажение голоса (Pitch)
+            // 2. Настраиваем искажение голоса (Pitch)
             let pitchRate = 1.0; 
-            if (voiceType === 'Male') pitchRate = 0.82; // Глубокий мужской, но не замедленный в ноль
+            if (voiceType === 'Male') pitchRate = 0.82; // Опускаем питч
             if (voiceType === 'Child') pitchRate = 1.4; // Высокий детский
-            if (voiceType === 'Robot') pitchRate = 0.9;
+            if (voiceType === 'Robot') pitchRate = 0.95;
 
             const finalPlaybackRate = speedMultiplier * pitchRate;
             let totalDuration = buffers.reduce((acc, buf) => acc + buf.duration, 0);
             
-            // Рассчитываем точную длину итогового файла
+            // Рассчитываем длину итогового файла
             const totalLength = Math.ceil(ctx.sampleRate * (totalDuration / finalPlaybackRate));
             const offlineCtx = new OfflineAudioContext(1, totalLength, ctx.sampleRate);
             
@@ -359,11 +354,30 @@
                 source.buffer = buf;
                 source.playbackRate.value = finalPlaybackRate;
 
-                if (voiceType === 'Robot') {
-                    // Эффект Робота (Амплитудная модуляция)
+                if (voiceType === 'Male') {
+                    // Улучшенный фильтр для создания реалистичного баса
+                    // 1. Усиливаем грудные/басовые частоты
+                    const lowEQ = offlineCtx.createBiquadFilter();
+                    lowEQ.type = 'lowshelf';
+                    lowEQ.frequency.value = 200; // Низкие частоты
+                    lowEQ.gain.value = 15;       // Сильно бустим бас
+
+                    // 2. Срезаем высокие (чтобы скрыть женский тембр)
+                    const highEQ = offlineCtx.createBiquadFilter();
+                    highEQ.type = 'highshelf';
+                    highEQ.frequency.value = 2500;
+                    highEQ.gain.value = -10;     // Глушим пищащие звуки
+
+                    source.connect(lowEQ);
+                    lowEQ.connect(highEQ);
+                    highEQ.connect(offlineCtx.destination);
+                    source.start(currentTime);
+
+                } else if (voiceType === 'Robot') {
+                    // Эффект Робота
                     const osc = offlineCtx.createOscillator();
                     osc.type = 'sine';
-                    osc.frequency.value = 50; // Металлическое дребезжание
+                    osc.frequency.value = 50; 
                     
                     const gainNode = offlineCtx.createGain();
                     source.connect(gainNode);
@@ -401,7 +415,7 @@
         if (!finalAudioBlob) return;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(finalAudioBlob);
-        a.download = `magic_voice_${new Date().getTime()}.wav`;
+        a.download = `voice_record_${new Date().getTime()}.wav`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -437,4 +451,4 @@
 </script>
 
 </body>
-</html>
+</html>        
