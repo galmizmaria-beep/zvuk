@@ -142,11 +142,14 @@
         .audio-player-container p { margin: 0 0 15px 0; font-family: 'Cinzel', serif; color: var(--text-main); font-size: 16px; }
         audio { width: 100%; height: 40px; outline: none; border-radius: 4px; }
         
+        .loader-container { display: none; text-align: center; margin-top: 20px; }
         .loader {
-            display: none; border: 3px solid rgba(197, 160, 89, 0.3); border-radius: 50%;
+            border: 3px solid rgba(197, 160, 89, 0.3); border-radius: 50%;
             border-top: 3px solid var(--gold); width: 30px; height: 30px;
-            animation: spin 1s linear infinite; margin: 20px auto;
+            animation: spin 1s linear infinite; margin: 0 auto;
         }
+        .progress-text { margin-top: 15px; font-family: 'Cormorant Garamond', serif; color: var(--gold); font-size: 16px; }
+
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -158,7 +161,7 @@
         <h2>Магия Голоса</h2>
         
         <label>Текст для озвучки (без ограничений)</label>
-        <textarea id="textInput" placeholder="Введите заклинание или длинный текст..."></textarea>
+        <textarea id="textInput" placeholder="Введите заклинание или очень длинный текст..."></textarea>
         <div class="char-counter"><span id="charCount">0</span> символов</div>
 
         <div class="slider-group">
@@ -197,7 +200,11 @@
         </p>
 
         <button id="checkBtn" class="btn">Проверить результат</button>
-        <div id="loader" class="loader"></div>
+        
+        <div id="loaderContainer" class="loader-container">
+            <div class="loader"></div>
+            <div id="progressText" class="progress-text">Подготовка заклинания...</div>
+        </div>
 
         <!-- Контейнер плеера (появляется после генерации) -->
         <div class="audio-player-container" id="playerContainer">
@@ -219,7 +226,8 @@
     const downloadBtn = document.getElementById('downloadBtn');
     const playerContainer = document.getElementById('playerContainer');
     const audioPlayer = document.getElementById('audioPlayer');
-    const loader = document.getElementById('loader');
+    const loaderContainer = document.getElementById('loaderContainer');
+    const progressText = document.getElementById('progressText');
 
     let finalAudioBlob = null;
 
@@ -245,22 +253,51 @@
         }
     }
 
-    // Функция разбивки текста на части (чтобы обходить лимиты API и блокировки)
+    // Умная разбивка текста (чтобы не резать слова и обходить лимиты Google)
     function chunkText(text, maxLength = 150) {
-        const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
+        const words = text.split(/[\s\n]+/);
         const chunks = [];
         let currentChunk = "";
 
-        for (let sentence of sentences) {
-            if ((currentChunk + sentence).length > maxLength) {
+        for (let word of words) {
+            if ((currentChunk + " " + word).length > maxLength) {
                 if (currentChunk) chunks.push(currentChunk.trim());
-                currentChunk = sentence;
+                currentChunk = word;
             } else {
-                currentChunk += " " + sentence;
+                currentChunk += (currentChunk ? " " : "") + word;
             }
         }
         if (currentChunk) chunks.push(currentChunk.trim());
         return chunks;
+    }
+
+    // Вспомогательная функция задержки для обхода банов
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    // Функция скачивания через каскад прокси (Решает проблему с VPN)
+    async function fetchAudioData(url) {
+        // Список прокси. Если один заблокирован в РФ, сработает следующий.
+        const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        ];
+
+        for (let proxy of proxies) {
+            try {
+                const response = await fetch(proxy);
+                if (response.ok) {
+                    const buffer = await response.arrayBuffer();
+                    // Проверяем, что вернулось аудио, а не заглушка от хостинга
+                    if (buffer.byteLength > 200) {
+                        return buffer;
+                    }
+                }
+            } catch (e) {
+                console.warn(`Прокси ${proxy} недоступен, пробуем следующий...`);
+            }
+        }
+        throw new Error("Не удалось подключиться к серверам магии. Возможно, потребуется VPN.");
     }
 
     // Главная функция сотворения аудио
@@ -269,7 +306,7 @@
         if (!text) return alert("Пожалуйста, напишите текст для заклинания!");
 
         checkBtn.style.display = 'none';
-        loader.style.display = 'block';
+        loaderContainer.style.display = 'block';
         resetPlayer();
 
         try {
@@ -285,20 +322,28 @@
             const buffers = [];
 
             // 1. Скачиваем аудио по кусочкам (Обход лимитов)
-            for (let chunk of chunks) {
-                const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${lang}&q=${encodeURIComponent(chunk)}`;
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            for (let i = 0; i < chunks.length; i++) {
+                progressText.innerText = `Сотворение магии: часть ${i + 1} из ${chunks.length}...`;
                 
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error("Ошибка сети");
+                // Используем клиент tw-ob, он работает стабильнее
+                const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(chunks[i])}`;
                 
-                const arrayBuffer = await response.arrayBuffer();
+                const arrayBuffer = await fetchAudioData(googleTtsUrl);
                 const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
                 buffers.push(audioBuffer);
+
+                // Задержка между запросами для предотвращения бана по IP при огромных текстах
+                if (i < chunks.length - 1) {
+                    await sleep(400); 
+                }
             }
+
+            progressText.innerText = `Наложение звуковых эффектов...`;
+            await sleep(100);
 
             // 2. Рассчитываем итоговую длину и скорость для эффектов
             let totalDuration = buffers.reduce((acc, buf) => acc + buf.duration, 0);
+            if (totalDuration === 0) throw new Error("Аудио пустое");
             
             let rate = speedMultiplier;
             // Применяем магию искажения голоса
@@ -306,7 +351,8 @@
             if (voiceType === 'Child') rate *= 1.5; // Ускоряем и повышаем тон
             
             // Создаем оффлайн-контекст для рендеринга итогового файла
-            const offlineCtx = new OfflineAudioContext(1, ctx.sampleRate * totalDuration * (1/rate), ctx.sampleRate);
+            const totalLength = Math.ceil(ctx.sampleRate * totalDuration * (1/rate));
+            const offlineCtx = new OfflineAudioContext(1, totalLength, ctx.sampleRate);
             
             let currentTime = 0;
 
@@ -348,10 +394,10 @@
 
         } catch (error) {
             console.error(error);
-            alert("Произошла ошибка при создании магии. Проверьте соединение с интернетом.");
+            alert(error.message || "Произошла магическая ошибка. Проверьте соединение с интернетом.");
         } finally {
             checkBtn.style.display = 'block';
-            loader.style.display = 'none';
+            loaderContainer.style.display = 'none';
         }
     });
 
@@ -366,7 +412,7 @@
         document.body.removeChild(a);
     });
 
-    // Утилита конвертации AudioBuffer в WAV Blob (встроено, чтобы скачивалось в браузер)
+    // Утилита конвертации AudioBuffer в WAV Blob
     function audioBufferToWav(buffer) {
         let numOfChan = buffer.numberOfChannels,
             length = buffer.length * numOfChan * 2 + 44,
