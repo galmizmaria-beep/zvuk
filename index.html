@@ -9,7 +9,7 @@
     
     <style>
         :root {
-            --bg-color: #0b1120; /* Глубокий синий */
+            --bg-color: #0b1120;
             --panel-bg: rgba(14, 23, 41, 0.85);
             --gold: #C5A059;
             --gold-hover: #e3bc6b;
@@ -94,10 +94,11 @@
 
         textarea { height: 100px; resize: none; }
         textarea:focus, select:focus { border-color: var(--gold); box-shadow: inset 0 0 5px rgba(197, 160, 89, 0.3); }
+        
+        .char-counter { text-align: right; font-size: 12px; color: #888; margin-top: 5px; font-family: sans-serif;}
 
         .slider-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
-        /* Стилизация ползунков под магические линии */
         input[type="range"] {
             -webkit-appearance: none; width: 100%; background: transparent; margin-top: 10px;
         }
@@ -110,7 +111,7 @@
         }
 
         .btn {
-            display: block; width: 100%; padding: 12px; margin-top: 30px;
+            display: block; width: 100%; padding: 12px; margin-top: 25px;
             background: transparent; color: var(--gold);
             border: 1px solid var(--gold); border-radius: 25px;
             font-family: 'Cinzel', serif; font-size: 16px; font-weight: bold;
@@ -119,10 +120,9 @@
         }
 
         .btn:hover { background: rgba(197, 160, 89, 0.1); box-shadow: var(--border-glow); }
-        .btn.ready { background: rgba(197, 160, 89, 0.2); border-color: #e3bc6b; color: #e3bc6b; }
+        .btn.ready { background: rgba(46, 204, 113, 0.2); border-color: #2ecc71; color: #2ecc71; }
         .btn.downloaded { border-color: #555; color: #888; cursor: default; background: transparent; }
 
-        /* Окно предпросмотра */
         .preview-list { list-style: none; padding: 0; margin: 0; }
         .preview-list li { margin-bottom: 12px; font-size: 18px; border-bottom: 1px dashed rgba(197,160,89,0.2); padding-bottom: 5px; }
         .preview-list strong { font-family: 'Cinzel', serif; color: var(--gold); font-size: 14px; display: inline-block; width: 100px; }
@@ -130,10 +130,19 @@
         .preview-text-box {
             margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.2);
             border: 1px solid rgba(197,160,89,0.2); font-style: italic; min-height: 80px;
-            word-wrap: break-word;
+            word-wrap: break-word; color: #a9b7c6;
         }
 
-        .audio-player-container { margin-top: 20px; display: none; text-align: center; }
+        .audio-player-container { 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: rgba(197, 160, 89, 0.1); 
+            border: 1px solid var(--gold); 
+            border-radius: 8px;
+            display: none; 
+            text-align: center; 
+        }
+        .audio-player-container p { margin: 0 0 10px 0; font-family: 'Cinzel', serif; color: var(--gold); font-size: 14px; }
         audio { width: 100%; height: 35px; outline: none; }
     </style>
 </head>
@@ -145,7 +154,8 @@
         <h2>Магия Голоса</h2>
         
         <label>Текст для озвучки</label>
-        <textarea id="textInput" placeholder="Введите заклинание или текст..."></textarea>
+        <textarea id="textInput" placeholder="Введите заклинание или текст..." maxlength="200"></textarea>
+        <div class="char-counter"><span id="charCount">0</span> / 200</div>
 
         <div class="slider-group">
             <div>
@@ -158,9 +168,9 @@
             <div>
                 <label>Тембр голоса</label>
                 <select id="voiceSelect">
-                    <option value="Standard">Стандартный</option>
-                    <option value="Male">Мужской (Имитация)</option>
-                    <option value="Female">Женский (Имитация)</option>
+                    <option value="Standard">Стандартный (Студия)</option>
+                    <option value="Male">Мужской баритон</option>
+                    <option value="Female">Женское сопрано</option>
                     <option value="Robot">Механический</option>
                 </select>
             </div>
@@ -176,6 +186,8 @@
                 <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
             </div>
         </div>
+
+        <button id="actionBtn" class="btn">Создать озвучку</button>
     </div>
 
     <!-- Правая панель: Предпросмотр -->
@@ -183,25 +195,24 @@
         <h2>Предпросмотр</h2>
         <ul class="preview-list">
             <li><strong>Язык:</strong> <span id="prev-lang">Русский</span></li>
-            <li><strong>Голос:</strong> <span id="prev-voice">Стандартный</span></li>
             <li><strong>Скорость:</strong> <span id="prev-speed">1.0</span></li>
-            <li><strong>Высота:</strong> <span id="prev-pitch">1.0</span></li>
         </ul>
         
         <label>Свиток с текстом:</label>
         <div class="preview-text-box" id="prev-text">Ожидание текста...</div>
 
+        <!-- Контейнер плеера (появляется после генерации) -->
         <div class="audio-player-container" id="playerContainer">
+            <p>Прослушайте результат:</p>
             <audio id="audioPlayer" controls></audio>
         </div>
-
-        <button id="actionBtn" class="btn">Создать озвучку</button>
     </div>
 </div>
 
 <script>
     // Элементы UI
     const textInput = document.getElementById('textInput');
+    const charCount = document.getElementById('charCount');
     const langSelect = document.getElementById('langSelect');
     const voiceSelect = document.getElementById('voiceSelect');
     const speedInput = document.getElementById('speed');
@@ -211,9 +222,7 @@
     // Элементы предпросмотра
     const prevText = document.getElementById('prev-text');
     const prevLang = document.getElementById('prev-lang');
-    const prevVoice = document.getElementById('prev-voice');
     const prevSpeed = document.getElementById('prev-speed');
-    const prevPitch = document.getElementById('prev-pitch');
     
     const playerContainer = document.getElementById('playerContainer');
     const audioPlayer = document.getElementById('audioPlayer');
@@ -223,52 +232,38 @@
     // Функция обновления окна предпросмотра
     function updatePreview() {
         prevText.innerText = textInput.value || "Ожидание текста...";
+        charCount.innerText = textInput.value.length;
         prevLang.innerText = langSelect.options[langSelect.selectedIndex].text;
-        prevVoice.innerText = voiceSelect.options[voiceSelect.selectedIndex].text;
         
         document.getElementById('speedVal').innerText = speedInput.value;
         prevSpeed.innerText = speedInput.value;
         
         document.getElementById('pitchVal').innerText = pitchInput.value;
-        prevPitch.innerText = pitchInput.value;
 
-        // Если настройки изменились, возвращаем кнопку в исходное состояние
+        // При изменении настроек меняем кнопку обратно на генерацию
         if (actionBtn.getAttribute('data-state') === 'download' || actionBtn.getAttribute('data-state') === 'downloaded') {
             actionBtn.setAttribute('data-state', 'create');
             actionBtn.className = "btn";
             actionBtn.innerText = "Создать озвучку";
-            playerContainer.style.display = 'none';
+            playerContainer.style.display = 'none'; // Прячем плеер
+            if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
         }
     }
 
-    // Вешаем слушатели на все элементы для живого предпросмотра
     textInput.addEventListener('input', updatePreview);
     langSelect.addEventListener('change', updatePreview);
     voiceSelect.addEventListener('change', updatePreview);
     speedInput.addEventListener('input', updatePreview);
     pitchInput.addEventListener('input', updatePreview);
 
-    // Функция конвертации Base64 в аудио Blob (файл)
-    function base64ToBlob(base64, mimeType) {
-        const byteCharacters = atob(base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        return new Blob([byteArray], { type: mimeType });
-    }
-
-    // Главная кнопка
+    // Главная логика генерации и скачивания
     actionBtn.addEventListener('click', async () => {
         const state = actionBtn.getAttribute('data-state') || 'create';
 
         if (state === 'create') {
             const text = textInput.value.trim();
-            if (!text) {
-                alert("Пожалуйста, напишите текст для заклинания!");
-                return;
-            }
+            if (!text) return alert("Пожалуйста, напишите текст для заклинания!");
+            if (text.length > 200) return alert("Текст слишком длинный. Максимум 200 символов.");
 
             actionBtn.innerText = "Сотворение магии...";
             actionBtn.style.color = "#fff";
@@ -277,37 +272,34 @@
                 const lang = langSelect.value;
                 const encodedText = encodeURIComponent(text);
                 
-                // Используем Lingva API (надежный прокси без ограничений CORS)
-                const apiUrl = `https://lingva.ml/api/v1/audio/${lang}/${encodedText}`;
+                // Используем стабильный Google TTS через открытый CORS-прокси
+                const googleUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${lang}&q=${encodedText}`;
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`;
                 
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error("Сервер магии недоступен");
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error("Сервер не ответил");
                 
-                const data = await response.json();
+                const blob = await response.blob();
                 
-                if (data.audio) {
-                    // Конвертируем полученные данные в MP3 файл
-                    const audioBlob = base64ToBlob(data.audio, 'audio/mp3');
-                    
-                    if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
-                    generatedBlobUrl = URL.createObjectURL(audioBlob);
-                    
-                    audioPlayer.src = generatedBlobUrl;
-                    // Применяем скорость (pitch в браузере менять сложно, поэтому меняем rate)
-                    audioPlayer.playbackRate = parseFloat(speedInput.value); 
-                    
-                    playerContainer.style.display = 'block';
+                if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
+                generatedBlobUrl = URL.createObjectURL(blob);
+                
+                // Загружаем аудио в плеер
+                audioPlayer.src = generatedBlobUrl;
+                // Применяем скорость из ползунка прямо к плееру
+                audioPlayer.playbackRate = parseFloat(speedInput.value);
+                
+                // Показываем плеер для прослушивания
+                playerContainer.style.display = 'block';
 
-                    actionBtn.setAttribute('data-state', 'download');
-                    actionBtn.className = "btn ready";
-                    actionBtn.innerText = "Скачать Свиток (MP3)";
-                } else {
-                    throw new Error("Пустой ответ сервера");
-                }
+                // Меняем состояние кнопки на скачивание
+                actionBtn.setAttribute('data-state', 'download');
+                actionBtn.className = "btn ready";
+                actionBtn.innerText = "Скачать Свиток (MP3)";
 
             } catch (error) {
                 console.error(error);
-                alert("Произошла ошибка при генерации. Попробуйте укоротить текст.");
+                alert("Произошла ошибка сети. Попробуйте еще раз.");
                 actionBtn.innerText = "Создать озвучку";
                 actionBtn.style.color = "var(--gold)";
             }
@@ -316,7 +308,7 @@
             // Скачивание файла на устройство
             const a = document.createElement('a');
             a.href = generatedBlobUrl;
-            a.download = `voice_magic_${new Date().getTime()}.mp3`;
+            a.download = `magic_voice_${new Date().getTime()}.mp3`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -327,7 +319,6 @@
         }
     });
 
-    // Инициализация при загрузке
     updatePreview();
 </script>
 
