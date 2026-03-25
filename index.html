@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Редактор для Genially</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f8;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        .editor-container {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h2 { margin-top: 0; font-size: 20px; color: #2c3e50; text-align: center; }
+        label { display: block; margin-top: 15px; font-size: 14px; font-weight: 600; }
+        textarea {
+            width: 100%; height: 100px; padding: 10px; margin-top: 5px;
+            border: 1px solid #ccc; border-radius: 6px; resize: none;
+            box-sizing: border-box; font-family: inherit;
+        }
+        select, input[type="range"] {
+            width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc;
+            border-radius: 6px; box-sizing: border-box;
+        }
+        .slider-group {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+        }
+        .btn {
+            display: block; width: 100%; padding: 12px; margin-top: 25px;
+            background: #3498db; color: #fff; border: none; border-radius: 6px;
+            font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        .btn:hover { background: #2980b9; }
+        .btn.ready { background: #2ecc71; }
+        .btn.ready:hover { background: #27ae60; }
+        .btn.downloaded { background: #95a5a6; cursor: default; }
+        .audio-preview { margin-top: 15px; width: 100%; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="editor-container">
+    <h2>Редактор озвучки</h2>
+    
+    <label>Текст для озвучки:</label>
+    <textarea id="textInput" placeholder="Введите текст здесь..."></textarea>
+
+    <label>Выберите голос:</label>
+    <select id="voiceSelect">
+        <option value="male">Мужской</option>
+        <option value="female">Женский</option>
+        <option value="child">Детский (имитация)</option>
+        <option value="cartoon">Мультяшный (имитация)</option>
+        <option value="robot">Робот (имитация)</option>
+    </select>
+
+    <div class="slider-group">
+        <div>
+            <label>Скорость: <span id="speedVal">1.0</span></label>
+            <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+        </div>
+        <div>
+            <label>Высота (Pitch): <span id="pitchVal">1.0</span></label>
+            <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+        </div>
+    </div>
+
+    <label>Формат файла:</label>
+    <select id="formatSelect">
+        <option value="mp3">MP3 (Аудио)</option>
+        <option value="mp4" disabled>MP4 (Видео - недоступно без сервера)</option>
+    </select>
+
+    <audio id="audioPlayer" class="audio-preview" controls></audio>
+
+    <button id="actionBtn" class="btn">Создать озвучку</button>
+</div>
+
+<script>
+    // Обновление значений ползунков
+    document.getElementById('speed').oninput = function() { document.getElementById('speedVal').innerText = this.value; }
+    document.getElementById('pitch').oninput = function() { document.getElementById('pitchVal').innerText = this.value; }
+
+    const actionBtn = document.getElementById('actionBtn');
+    const audioPlayer = document.getElementById('audioPlayer');
+    let generatedBlobUrl = null;
+
+    actionBtn.addEventListener('click', async () => {
+        const state = actionBtn.getAttribute('data-state') || 'create';
+
+        if (state === 'create') {
+            const text = document.getElementById('textInput').value;
+            if (!text) return alert("Пожалуйста, введите текст!");
+
+            actionBtn.innerText = "Генерация...";
+            actionBtn.style.background = "#e67e22";
+
+            try {
+                // Используем бесплатный неофициальный API Google Translate для получения MP3
+                // В реальном проекте здесь подключается API Yandex SpeechKit или ElevenLabs
+                const encodedText = encodeURIComponent(text);
+                const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ru-RU&client=tw-ob&q=${encodedText}`;
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Ошибка сети");
+                
+                const blob = await response.blob();
+                
+                // Освобождаем старый URL, если был
+                if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
+                generatedBlobUrl = URL.createObjectURL(blob);
+                
+                audioPlayer.src = generatedBlobUrl;
+                audioPlayer.style.display = 'block';
+
+                // Меняем кнопку на "Скачать"
+                actionBtn.setAttribute('data-state', 'download');
+                actionBtn.className = "btn ready";
+                actionBtn.innerText = "Скачать озвучку";
+
+            } catch (error) {
+                alert("Ошибка генерации. Попробуйте другой текст.");
+                actionBtn.innerText = "Создать озвучку";
+                actionBtn.style.background = "#3498db";
+            }
+        } 
+        else if (state === 'download') {
+            // Скачивание файла
+            const a = document.createElement('a');
+            a.href = generatedBlobUrl;
+            a.download = `voiceover_${new Date().getTime()}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Меняем кнопку на "Скачано"
+            actionBtn.setAttribute('data-state', 'downloaded');
+            actionBtn.className = "btn downloaded";
+            actionBtn.innerText = "Скачано";
+
+            // Возврат в исходное состояние при изменении текста
+            document.getElementById('textInput').addEventListener('input', resetBtn, {once: true});
+            document.getElementById('voiceSelect').addEventListener('change', resetBtn, {once: true});
+        }
+    });
+
+    function resetBtn() {
+        actionBtn.setAttribute('data-state', 'create');
+        actionBtn.className = "btn";
+        actionBtn.innerText = "Создать озвучку";
+        audioPlayer.style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
